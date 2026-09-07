@@ -5,10 +5,10 @@
 <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg?style=flat-square" alt="Python 3.12+">
 <a href="https://github.com/jimsimoy/cloudflare-mcp/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License: MIT"></a>
 <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-green.svg?style=flat-square" alt="MCP Compatible"></a>
-<img src="https://img.shields.io/badge/tools-7-brightgreen.svg?style=flat-square" alt="7 Tools">
+<img src="https://img.shields.io/badge/tools-13-brightgreen.svg?style=flat-square" alt="13 Tools">
 <img src="https://img.shields.io/badge/package%20manager-uv-orange.svg?style=flat-square" alt="Managed with uv">
 
-**7 tools for Cloudflare zone and DNS record management — list/inspect zones, and list/get/create/update/delete DNS records — for Claude Desktop, Claude Code, and any MCP client.**
+**13 tools for Cloudflare zone/DNS management and Email Routing — for Claude Desktop, Claude Code, and any MCP client.**
 
 by [Jan Ivan Simoy](https://github.com/jimsimoy)
 
@@ -18,9 +18,9 @@ by [Jan Ivan Simoy](https://github.com/jimsimoy)
 
 ## What is this?
 
-Cloudflare MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants structured access to the [Cloudflare API v4](https://developers.cloudflare.com/api/) — specifically zones (domains) and their DNS records.
+Cloudflare MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants structured access to the [Cloudflare API v4](https://developers.cloudflare.com/api/) — zones (domains), their DNS records, and Email Routing (destination addresses + forwarding rules).
 
-It deliberately covers only zones and DNS. Cloudflare's REST API is enormous — Workers, KV/R2/D1, cache purging, zone settings, Analytics, Radar, and more — and Cloudflare already ships more than a dozen product-specific MCP servers of its own for that surface. This one stays narrow: read a zone, then read, create, update, or delete the DNS records in it. Cache purging and zone-settings edits are explicitly out of scope for v1 — they change how traffic is served for an entire domain and deserve their own deliberate tool design later, not a bolt-on here.
+It deliberately covers only this slice. Cloudflare's REST API is enormous — Workers, KV/R2/D1, cache purging, general zone settings, Analytics, Radar, and more — and Cloudflare already ships more than a dozen product-specific MCP servers of its own for that surface. This one stays narrow: zones, DNS records, and the Email Routing feature (which itself just manages a specific set of DNS records plus destination-address verification and rule matching). Cache purging and other zone-settings edits are explicitly out of scope for v1 — they change how traffic is served for an entire domain and deserve their own deliberate tool design later, not a bolt-on here.
 
 **Supported platform:** any MCP client on macOS, Linux, or Windows with Python 3.12+.
 
@@ -32,6 +32,7 @@ It deliberately covers only zones and DNS. Cloudflare's REST API is enormous —
 |---|---|---|
 | **Zones** | 2 | List zones (domains) visible to the token, fetch one by ID |
 | **DNS Records** | 5 | List/filter, fetch, create, update, and delete DNS records within a zone |
+| **Email Routing** | 6 | Enable routing on a zone, manage destination addresses, manage forwarding rules |
 
 <details>
 <summary>Full tool reference</summary>
@@ -45,8 +46,19 @@ It deliberately covers only zones and DNS. Cloudflare's REST API is enormous —
 | `create_dns_record` | Create a DNS record (A, AAAA, CNAME, MX, TXT, NS, CAA, SRV, etc.) |
 | `update_dns_record` | Partially update an existing DNS record — only the fields you pass change |
 | `delete_dns_record` | Delete a DNS record (irreversible) |
+| `enable_email_routing` | Enable Email Routing on a zone (auto-adds/locks the required MX + SPF-include records) |
+| `list_email_routing_addresses` | List destination addresses on the account (shared across all zones), with verification status |
+| `create_email_routing_address` | Add a destination address (triggers a verification email, unless it's the account's own login email) |
+| `list_email_routing_rules` | List forwarding rules for a zone |
+| `create_email_routing_rule` | Create a rule forwarding one exact address to a verified destination |
 
 </details>
+
+### A note on Email Routing permissions
+
+Beyond the base `Zone:DNS:Edit`/`Zone:Zone:Read` above, Email Routing needs three more token permissions: **Account → Email Routing Addresses → Edit**, **Zone → Email Routing Rules → Edit**, and **Zone → Zone Settings → Edit** (the last one specifically gates the enable/disable toggle — easy to miss since it's not obviously "email" named). `CLOUDFLARE_ACCOUNT_ID` is **required**, not optional, for the two account-scoped address tools.
+
+If a zone already has MX/SPF records from another provider (e.g. registrar-based forwarding), remove those first with `delete_dns_record` — Cloudflare Email Routing's own MX records will conflict with them otherwise, and SPF only allows one TXT record.
 
 ---
 

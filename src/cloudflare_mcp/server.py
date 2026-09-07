@@ -189,6 +189,78 @@ async def delete_dns_record(zone_id: str, dns_record_id: str) -> dict[str, Any]:
     return await client.delete(f"/zones/{zone_id}/dns_records/{dns_record_id}")
 
 
+# --- Email Routing --------------------------------------------------------------
+# Destination addresses are ACCOUNT-scoped (shared across every zone on the
+# account); routing rules and the enable/disable toggle are ZONE-scoped.
+# Needs extra token permissions beyond plain DNS: Account > Email Routing
+# Addresses > Edit, and Zone > Email Routing Rules > Edit.
+
+
+def _require_account_id() -> str:
+    credentials = CloudflareCredentials.from_env()
+    if not credentials.account_id:
+        raise RuntimeError(
+            "CLOUDFLARE_ACCOUNT_ID must be set for account-scoped Email Routing "
+            "calls (destination addresses are account-wide, not per-zone)."
+        )
+    return credentials.account_id
+
+
+@mcp.tool()
+async def enable_email_routing(zone_id: str) -> dict[str, Any]:
+    """Enable Email Routing on a zone. Cloudflare auto-adds/locks the required MX and SPF-include records.
+
+    Will fail if the zone already has conflicting MX records from another
+    provider — remove those first (see delete_dns_record).
+    """
+    client = _get_client()
+    return await client.post(f"/zones/{zone_id}/email/routing/enable", {})
+
+
+@mcp.tool()
+async def list_email_routing_addresses() -> list[dict[str, Any]]:
+    """List destination addresses on this account (shared across all zones), with verification status."""
+    client = _get_client()
+    account_id = _require_account_id()
+    return await client.get_all_pages(f"/accounts/{account_id}/email/routing/addresses")
+
+
+@mcp.tool()
+async def create_email_routing_address(email: str) -> dict[str, Any]:
+    """Add a destination address. Cloudflare emails it a verification link — it can't receive forwards until that's clicked."""
+    client = _get_client()
+    account_id = _require_account_id()
+    return await client.post(f"/accounts/{account_id}/email/routing/addresses", {"email": email})
+
+
+@mcp.tool()
+async def list_email_routing_rules(zone_id: str) -> list[dict[str, Any]]:
+    """List Email Routing rules (custom address -> destination mappings) for a zone."""
+    client = _get_client()
+    return await client.get_all_pages(f"/zones/{zone_id}/email/routing/rules")
+
+
+@mcp.tool()
+async def create_email_routing_rule(
+    zone_id: str, match_address: str, forward_to: str, name: str | None = None, enabled: bool = True
+) -> dict[str, Any]:
+    """Create a rule forwarding one exact email address to a destination address.
+
+    match_address must be an exact address at this zone's domain (e.g.
+    'support@preymal.com'). forward_to must already be a VERIFIED destination
+    address (see create_email_routing_address) or Cloudflare will reject it.
+    """
+    client = _get_client()
+    body: dict[str, Any] = {
+        "matchers": [{"type": "literal", "field": "to", "value": match_address}],
+        "actions": [{"type": "forward", "value": [forward_to]}],
+        "enabled": enabled,
+    }
+    if name is not None:
+        body["name"] = name
+    return await client.post(f"/zones/{zone_id}/email/routing/rules", body)
+
+
 def main() -> None:
     mcp.run(transport="stdio")
 
