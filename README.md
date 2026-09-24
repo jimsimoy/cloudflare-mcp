@@ -16,6 +16,8 @@ by [Jan Ivan Simoy](https://github.com/jimsimoy)
 
 ---
 
+> **Unofficial.** This is an independent, community-built project — not affiliated with, endorsed by, or sponsored by Cloudflare.
+
 ## What is this?
 
 Cloudflare MCP is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants structured access to the [Cloudflare API v4](https://developers.cloudflare.com/api/) — zones (domains), their DNS records, and Email Routing (destination addresses + forwarding rules).
